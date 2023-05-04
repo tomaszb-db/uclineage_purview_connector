@@ -4,8 +4,8 @@ from pyapacheatlas.core.typedef import AtlasAttributeDef, EntityTypeDef
 def create_delete_entities(purview_client, delete=False):
     # notebook process
     notebook_entity = EntityTypeDef(
-        name="databricks_uc_notebook",
-        superTypes=["Process"],
+        name="databricks_notebook_custom",
+        superTypes=["databricks_notebook"],
         serviceType="Databricks Unity Catalog",
         attributeDefs=[
             AtlasAttributeDef("columnMapping"),
@@ -15,8 +15,8 @@ def create_delete_entities(purview_client, delete=False):
 
     # job process
     job_entity = EntityTypeDef(
-        name="databricks_uc_job",
-        superTypes=["Process"],
+        name="databricks_job_custom",
+        superTypes=["databricks_job"],
         serviceType="Databricks Unity Catalog",
         attributeDefs=[
             AtlasAttributeDef("columnMapping"),
@@ -27,6 +27,6 @@ def create_delete_entities(purview_client, delete=False):
     entities = [notebook_entity, job_entity]
 
     if not delete:
-        return purview_client.upload_typdefs(entityDefs=entities)
+        return purview_client.client.upload_typedefs(entityDefs=entities)
     else:
-        purview_client.delete_typedefs(entityDefs=entities)
+        purview_client.client.delete_typedefs(entityDefs=entities)

@@ -4,8 +4,6 @@ from pyapacheatlas.core import PurviewClient, AtlasEntity, AtlasProcess
 
 class PurviewService:
     client: PurviewClient = None
-    tables_collection: list = []
-    catalogs_collection: list = []
 
     def __init__(self, tenant_id, client_id, client_secret, account_name):
         oauth = ServicePrincipalAuthentication(
@@ -20,6 +18,10 @@ class PurviewService:
         return self.client.upload_entities(entities)
 
     def get_collection(self, collection_name):
+        tables_collection = []
+        catalogs_collection = []
+        catalogs_name_list = []
+
         coll_gen = self.client.collections.list_collections()
 
         collection_id = None
@@ -28,17 +30,31 @@ class PurviewService:
                 collection_id = coll["name"]
 
         collection_pulled = self.client.discovery.query(filter={"collectionId": collection_id})
-
         for each in collection_pulled['value']:
             if each['entityType'] == "databricks_table":
                 each.update(PurviewService._get_catalog_schema_table_names(each['qualifiedName']))
 
-                self.tables_collection.append(each)
+                tables_collection.append(each)
 
-            elif each['entityType'] == "databricks_catalog":
-                self.catalogs_collection.append(each)
+                if each["catalog"] not in catalogs_name_list:
+                    catalogs_name_list.append(each["catalog"])
 
-        return self.tables_collection, self.catalogs_collection
+        catalogs_collection = PurviewService._get_catalog_collection_from_names(catalogs_name_list, collection_pulled["value"])
+
+        #            elif each['entityType'] == "databricks_catalog":
+        #                catalogs_collection.append(each)
+
+        return tables_collection, catalogs_collection
+
+    @staticmethod
+    def _get_catalog_collection_from_names(catalogs_name_list, full_collection):
+        catalogs_to_return = []
+        for name in catalogs_name_list:
+            temp_catalog = PurviewService._find_catalog_from_name(name, full_collection)
+            if temp_catalog:
+                catalogs_to_return.append(temp_catalog)
+
+        return catalogs_to_return
 
     @staticmethod
     def _get_catalog_schema_table_names(table_qualified_name):
@@ -46,11 +62,19 @@ class PurviewService:
         return {"catalog": split_str[4], "schema": split_str[6], "table": split_str[8]}
 
     @staticmethod
-    def create_notebook_entity(name, ms_id, full_link, inputs, outputs):
+    def _find_catalog_from_name(catalog_name, collection_list):
+        for coll_item in collection_list:
+            if catalog_name == coll_item["name"]:
+                return coll_item
+
+        return None
+
+    @staticmethod
+    def create_notebook_entity(name, ms_id, full_link, inputs, outputs, input_table, output_table):
         return AtlasProcess(
             name=name,
-            qualified_name="databricks://" + f'{ms_id}/notebook/{name}',
-            typeName="databricks_notebook",
+            qualified_name="databricks://" + f'{ms_id}/notebook/{name}/{input_table}->{output_table}',
+            typeName="databricks_notebook_custom",
             inputs=inputs,
             outputs=outputs,
             attributes={
@@ -59,14 +83,14 @@ class PurviewService:
         )
 
     @staticmethod
-    def create_job_entity(name, ms_id, full_link, inputs, outputs):
+    def create_job_entity(name, ms_id, full_link, inputs, outputs, input_table, output_table):
         return AtlasProcess(
             name=name,
-            qualified_name="databricks://" + f'{ms_id}/job/{name}',
-            typeName="databricks_job",
+            qualified_name="databricks://" + f'{ms_id}/job/{name}/{input_table}->{output_table}',
+            typeName="databricks_job_custom",
             inputs=inputs,
             outputs=outputs,
-            attributes={
+            attributeDefs={
                 "asset_link": full_link
             }
         )

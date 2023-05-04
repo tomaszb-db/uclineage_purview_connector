@@ -10,7 +10,7 @@ class UCLineagePurviewConnector:
     purview_collection_name: str = None
     databricks_host: str = None
 
-    def __init__(self, warehouse_http_host_path, purview_collection_name, azure_account_name="purviewUC"):
+    def __init__(self, warehouse_http_host_path, azure_account_name="purviewUC"):
         self.databricks_host = os.environ.get("DATABRICKS_HOST_LINEAGE")
 
         self.purview_service = PurviewService(os.environ.get("AZURE_TENANT_ID"),
@@ -21,53 +21,70 @@ class UCLineagePurviewConnector:
         self.uc_service = UCService(os.getenv("DATABRICKS_HOST_LINEAGE"), os.getenv("DATABRICKS_ACCESS_TOKEN_LINEAGE"),
                                     warehouse_http_host_path)
 
-        self.purview_collection_name = purview_collection_name
-
     def migrate_lineage(self, purview_collection):
         purview_tables, purview_catalogs = self.purview_service.get_collection(purview_collection)
 
         catalog_names = [catalog['name'] for catalog in purview_catalogs]
+        print(f'Catalogs pulled from Purview: {catalog_names}')
+
         catalog_table_lineage, catalog_column_lineage = self.uc_service.get_system_table_lineage(catalog_names)
 
         for catalog_name, table_lineage_item in catalog_table_lineage.items():
-            processes_to_create = {}
             lineage_to_purview = []
 
             for table_lineage_row in table_lineage_item:
-                if table_lineage_row["source_table_full_name"] and table_lineage_row["target_table_full_name"]:
-
+                source_table_qual_name = UCLineagePurviewConnector._get_full_table_name(table_lineage_row["source_table_full_name"], purview_tables)
+                target_table_qual_name = UCLineagePurviewConnector._get_full_table_name(table_lineage_row["target_table_full_name"], purview_tables)
+                if source_table_qual_name and target_table_qual_name:
                     process_entity_to_create = None
 
-                    source_table_qual_name = UCLineagePurviewConnector._get_full_table_name(table_lineage_row["source_table_full_name"], purview_tables)
-                    target_table_qual_name = UCLineagePurviewConnector._get_full_table_name(table_lineage_row["target_table_full_name"], purview_tables)
+                    proc_input = [{
+                        "typeName": "databricks_table",
+                        "uniqueAttributes": {"qualifiedName": source_table_qual_name}
+                    }]
+                    proc_output = [{
+                        "typeName": "databricks_table",
+                        "uniqueAttributes": {"qualifiedName": target_table_qual_name}
+                    }]
 
                     if table_lineage_row["entity_type"] == "NOTEBOOK":
                         # todo: get notebook name
                         process_entity_to_create = PurviewService.create_notebook_entity(table_lineage_row["entity_id"],
-                                                                                        table_lineage_row["metastore_id"],
-                                                                                        self._create_notebook_link(table_lineage_row),
-                                                                                        source_table_qual_name,
-                                                                                        target_table_qual_name)
+                                                                                         table_lineage_row["metastore_id"],
+                                                                                         self._create_notebook_link(table_lineage_row),
+                                                                                         proc_input,
+                                                                                         proc_output,
+                                                                                         table_lineage_row["source_table_name"],
+                                                                                         table_lineage_row["target_table_name"]
+                                                                                         )
 
                     elif table_lineage_row["entity_type"] == "JOB":
                         process_entity_to_create = PurviewService.create_notebook_entity(table_lineage_row["entity_id"],
-                                                                                        table_lineage_row["metastore_id"],
-                                                                                        self._create_notebook_link(table_lineage_row),
-                                                                                        source_table_qual_name,
-                                                                                        target_table_qual_name)
+                                                                                         table_lineage_row["metastore_id"],
+                                                                                         self._create_notebook_link(table_lineage_row),
+                                                                                         proc_input,
+                                                                                         proc_output,
+                                                                                         table_lineage_row["source_table_name"],
+                                                                                         table_lineage_row["target_table_name"]
+                                                                                         )
                     else:
                         continue  # just in case there's other entity types
 
                     column_lineage_map = UCLineagePurviewConnector._create_lineage_map(source_table_qual_name, target_table_qual_name, catalog_column_lineage[catalog_name])
-                    if column_lineage_map:
+                    if column_lineage_map and process_entity_to_create:
                         process_entity_to_create.attributes["columnMapping"] = json.dumps(column_lineage_map)
-                    if process_entity_to_create:
+                        import pdb; pdb.set_trace()
                         lineage_to_purview.append(process_entity_to_create)
 
-                    # todo: upload lineage to purview actually
+                    if lineage_to_purview:
+                        result = self.purview_service.upload_entities(lineage_to_purview)
+
+                        print(result)
+
 
     @staticmethod
     def _create_lineage_map(source_table_qual_name, target_table_qual_name, catalog_column_lineage):
+        print(f'Creating lineage map for {source_table_qual_name} and {target_table_qual_name}')
         column_map_cols = []
 
         source_table_uc_name = UCLineagePurviewConnector._get_uc_full_table_name(source_table_qual_name)
