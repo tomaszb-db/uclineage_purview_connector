@@ -73,7 +73,6 @@ class UCLineagePurviewConnector:
                     column_lineage_map = UCLineagePurviewConnector._create_lineage_map(source_table_qual_name, target_table_qual_name, catalog_column_lineage[catalog_name])
                     if column_lineage_map and process_entity_to_create:
                         process_entity_to_create.attributes["columnMapping"] = json.dumps(column_lineage_map)
-                        import pdb; pdb.set_trace()
                         lineage_to_purview.append(process_entity_to_create)
 
                     if lineage_to_purview:
