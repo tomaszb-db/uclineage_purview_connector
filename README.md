@@ -22,5 +22,5 @@ This connector will use a Databricks SQL Warehouse to import lineage from Unity 
 ```
 5) Run the migration specifying the Purview collection which contains the already migrated UC assets (without lineage):
 ```python
-        connector.migrate_lineage(purview_collection=<collection_name>)
+          connector.migrate_lineage(purview_collection=<collection_name>)
 ```
