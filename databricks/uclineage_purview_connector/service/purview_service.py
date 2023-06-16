@@ -17,6 +17,7 @@ class PurviewService:
     def upload_entities(self, entities):
         return self.client.upload_entities(entities)
 
+    # finds tables where lineage needs to be pulled from Unity Catalog
     def get_collection(self, collection_name):
         tables_collection = []
         catalogs_collection = []
