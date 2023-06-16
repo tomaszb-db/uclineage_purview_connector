@@ -10,6 +10,12 @@ class UCLineagePurviewConnector:
     purview_collection_name: str = None
     databricks_host: str = None
 
+    # initialization of connector, need to provide Azure account name for where the Purview instance resides
+    # environment variables defined as follows: DATABRICKS_HOST_LINEAGE (ex.adb-5343834423590926.6.azuredatabricks.net or demo-field-eng-test.cloud.databricks.com)
+    #                                           DATABRICKS_ACCESS_TOKEN_LINEAGE
+    #                                           AZURE_TENANT_ID
+    #                                           AZURE_CLIENT_ID
+    #                                           AZURE_CLIENT_SECRET
     def __init__(self, warehouse_http_host_path, azure_account_name="purviewUC"):
         self.databricks_host = os.environ.get("DATABRICKS_HOST_LINEAGE")
 
@@ -48,7 +54,6 @@ class UCLineagePurviewConnector:
                     }]
 
                     if table_lineage_row["entity_type"] == "NOTEBOOK":
-                        # todo: get notebook name
                         process_entity_to_create = PurviewService.create_notebook_entity(table_lineage_row["entity_id"],
                                                                                          table_lineage_row["metastore_id"],
                                                                                          self._create_notebook_link(table_lineage_row),
@@ -80,7 +85,7 @@ class UCLineagePurviewConnector:
 
                         print(result)
 
-
+    # creates column lineage map in Purview format
     @staticmethod
     def _create_lineage_map(source_table_qual_name, target_table_qual_name, catalog_column_lineage):
         print(f'Creating lineage map for {source_table_qual_name} and {target_table_qual_name}')
@@ -105,8 +110,9 @@ class UCLineagePurviewConnector:
         else:
             return None
 
+    # creates URL link so that it can be found in the Purview properties of the entity
     def _create_notebook_link(self, table_lineage_item):
-        return f'https://{self.databricks_host}/o={table_lineage_item["workspace_id"]}#notebook/{table_lineage_item["entity_id"]}'
+        return f'https://{self.databricks_host}/?o={table_lineage_item["workspace_id"]}#notebook/{table_lineage_item["entity_id"]}'
 
     @staticmethod
     def _get_full_table_name(unity_full_name, purview_tables):

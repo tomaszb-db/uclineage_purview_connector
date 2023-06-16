@@ -94,3 +94,29 @@ class PurviewService:
                 "asset_link": full_link
             }
         )
+
+    # currently unsused, will add migration of the basic assets in the future
+    @staticmethod
+    def create_catalog_entity(name, ms_id):
+        return AtlasEntity(
+            name=name,
+            qualified_name="databricks://" + f'{ms_id}/catalogs/{name}',
+            typeName="databricks_catalog",
+            attributes={"assetType": ["Databricks UC"]}
+        )
+
+    @staticmethod
+    def create_schema_entity(name, ms_id):
+        return AtlasEntity(
+            name=name,
+            qualified_name="databricks://" + f'{ms_id}/catalogs/{name}',
+            typeName="databricks_schema",
+            attributes={"assetType": ["Databricks UC"]}
+        )
+
+    @staticmethod
+    def create_table_entity(name, ms_id):
+        return AtlasEntity(
+            name=name,
+            qualified_name="data"
+        )
